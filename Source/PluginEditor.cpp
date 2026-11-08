@@ -7,16 +7,23 @@ namespace
     const juce::Colour panel    { 0xff1c1c22 };
     const juce::Colour edge     { 0xff2c2c36 };
     const juce::Colour acid     { 0xffc8ff2e };   // neon acid green
-    const juce::Colour hot      { 0xffff5a1f };   // distortion orange
+    const juce::Colour hot      { 0xffff5a1f };   // distortion / accent orange
+    const juce::Colour fxCol    { 0xffb36bff };   // fx purple
     const juce::Colour textCol  { 0xffd9d9e0 };
     const juce::Colour dimText  { 0xff70707c };
 
-    struct KnobDef { const char* id; const char* name; };
-    const KnobDef defs[] = {
-        { "cutoff", "CUTOFF" }, { "reso", "RESONANCE" }, { "envmod", "ENV MOD" }, { "decay", "DECAY" }
-    };
+    constexpr int W = 780, H = 600;
 
-    constexpr int W = 600, H = 470;
+    juce::String noteName (int semis)
+    {
+        static const char* n[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+        const int pc = ((semis % 12) + 12) % 12;
+        juce::String s (n[pc]);
+        if (semis >= 24)      s << "++";
+        else if (semis >= 12) s << "+";
+        else if (semis < 0)   s << "-";
+        return s;
+    }
 }
 
 // ============================ Look and feel ============================
@@ -43,13 +50,11 @@ void AcidLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, 
     const float trackW = juce::jmax (3.0f, radius * 0.12f);
     const float arcR = radius - trackW;
 
-    // track
     juce::Path track;
     track.addCentredArc (c.x, c.y, arcR, arcR, 0.0f, startAngle, endAngle, true);
     g.setColour (juce::Colour (0xff2a2a33));
     g.strokePath (track, juce::PathStrokeType (trackW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    // value arc with glow
     if (pos > 0.001f)
     {
         juce::Path val;
@@ -63,7 +68,6 @@ void AcidLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, 
         g.strokePath (val, juce::PathStrokeType (trackW, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
 
-    // knob body
     const float bodyR = arcR - trackW * 1.6f;
     auto body = juce::Rectangle<float> (bodyR * 2.0f, bodyR * 2.0f).withCentre (c);
     g.setColour (juce::Colours::black.withAlpha (0.5f));
@@ -74,7 +78,6 @@ void AcidLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w, 
     g.setColour (juce::Colour (0xff4a4a58));
     g.drawEllipse (body.reduced (0.5f), 1.0f);
 
-    // pointer
     juce::Path ptr;
     const float pl = bodyR * 0.75f;
     ptr.addRoundedRectangle (-1.75f, -pl, 3.5f, pl * 0.55f, 1.75f);
@@ -87,51 +90,267 @@ void AcidLookAndFeel::drawComboBox (juce::Graphics& g, int w, int h, bool, int, 
     auto r = juce::Rectangle<float> (0.0f, 0.0f, (float) w, (float) h).reduced (1.0f);
     g.setColour (juce::Colour (0xff101014));
     g.fillRoundedRectangle (r, 6.0f);
-    g.setColour (box.isMouseOver() ? acid.withAlpha (0.7f) : edge);
+    const auto col = box.findColour (juce::ComboBox::textColourId);
+    g.setColour (box.isMouseOver() ? col.withAlpha (0.7f) : edge);
     g.drawRoundedRectangle (r, 6.0f, 1.5f);
 
     juce::Path arrow;
-    const float ax = (float) w - 20.0f, ay = (float) h * 0.5f;
+    const float ax = (float) w - 16.0f, ay = (float) h * 0.5f;
     arrow.addTriangle (ax - 5.0f, ay - 3.0f, ax + 5.0f, ay - 3.0f, ax, ay + 4.0f);
-    g.setColour (acid);
+    g.setColour (col);
     g.fillPath (arrow);
 }
 
-juce::Font AcidLookAndFeel::getComboBoxFont (juce::ComboBox&)
+juce::Font AcidLookAndFeel::getComboBoxFont (juce::ComboBox& box)
 {
-    return juce::Font (juce::FontOptions (16.0f, juce::Font::bold));
+    return juce::Font (juce::FontOptions (box.getHeight() > 30 ? 16.0f : 14.0f, juce::Font::bold));
+}
+
+void AcidLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& b, const juce::Colour&, bool over, bool down)
+{
+    auto r = b.getLocalBounds().toFloat().reduced (1.0f);
+    const auto col = b.findColour (juce::TextButton::buttonOnColourId);
+    if (b.getToggleState())
+    {
+        g.setColour (col.withAlpha (0.25f));
+        g.fillRoundedRectangle (r.expanded (1.0f), 7.0f);
+        g.setColour (col);
+        g.fillRoundedRectangle (r, 6.0f);
+    }
+    else
+    {
+        g.setColour (down ? juce::Colour (0xff26262e) : juce::Colour (0xff101014));
+        g.fillRoundedRectangle (r, 6.0f);
+        g.setColour (over ? col.withAlpha (0.7f) : edge);
+        g.drawRoundedRectangle (r, 6.0f, 1.5f);
+    }
+}
+
+void AcidLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b, bool, bool)
+{
+    const auto col = b.findColour (juce::TextButton::buttonOnColourId);
+    g.setColour (b.getToggleState() ? juce::Colour (0xff101014) : col);
+    g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+    g.drawText (b.getButtonText(), b.getLocalBounds(), juce::Justification::centred);
+}
+
+// ============================ Step grid ============================
+int StepGrid::columnAt (float x) const
+{
+    return juce::jlimit (0, AcidPatterns::numSteps - 1, (int) (x / ((float) getWidth() / AcidPatterns::numSteps)));
+}
+
+StepGrid::Zone StepGrid::zoneAt (float y) const
+{
+    const float ph = pitchArea().getHeight();
+    if (y < ph)          return Zone::pitch;
+    if (y < ph + 27.0f)  return Zone::accent;
+    return Zone::slide;
+}
+
+void StepGrid::paint (juce::Graphics& g)
+{
+    const int cur = processor.currentStep.load();
+    const float cellW = (float) getWidth() / AcidPatterns::numSteps;
+    const auto pa = pitchArea();
+    const float range = (float) (AcidPatterns::maxSemis - AcidPatterns::minSemis);
+
+    for (int i = 0; i < AcidPatterns::numSteps; ++i)
+    {
+        const auto s = processor.getStep (i);
+        auto col = juce::Rectangle<float> (i * cellW, 0.0f, cellW, pa.getHeight()).reduced (2.0f, 0.0f);
+        const bool isCur = i == cur;
+        const auto lit = s.accent ? hot : acid;
+
+        // column background
+        g.setColour (i % 4 == 0 ? juce::Colour (0xff22222a) : juce::Colour (0xff1a1a20));
+        g.fillRoundedRectangle (col, 4.0f);
+
+        if (s.on)
+        {
+            const float frac = (float) (s.semis - AcidPatterns::minSemis + 2) / (range + 2.0f);
+            auto bar = col.withTop (col.getBottom() - col.getHeight() * frac);
+            if (isCur)
+            {
+                g.setColour (lit.withAlpha (0.3f));
+                g.fillRoundedRectangle (bar.expanded (3.0f), 6.0f);
+            }
+            g.setColour (isCur ? lit : lit.withAlpha (0.45f));
+            g.fillRoundedRectangle (bar, 4.0f);
+            g.setColour (isCur ? juce::Colour (0xff101014) : textCol);
+            g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+            g.drawText (noteName (s.semis), bar.withHeight (16.0f), juce::Justification::centred);
+        }
+        else if (isCur)
+        {
+            g.setColour (dimText.withAlpha (0.4f));
+            g.drawRoundedRectangle (col, 4.0f, 1.0f);
+        }
+
+        // root line (semis = 0)
+        const float zeroY = col.getBottom() - col.getHeight() * (float) (-AcidPatterns::minSemis + 2) / (range + 2.0f);
+        g.setColour (juce::Colours::white.withAlpha (0.06f));
+        g.drawHorizontalLine ((int) zeroY, col.getX(), col.getRight());
+
+        // accent + slide toggles
+        auto aBox = juce::Rectangle<float> (i * cellW, pa.getBottom() + 5.0f, cellW, 22.0f).reduced (3.0f, 0.0f);
+        auto sBox = aBox.translated (0.0f, 27.0f);
+        g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+
+        g.setColour (s.accent ? hot : juce::Colour (0xff1a1a20));
+        g.fillRoundedRectangle (aBox, 4.0f);
+        g.setColour (s.accent ? juce::Colour (0xff101014) : dimText);
+        g.drawText ("A", aBox, juce::Justification::centred);
+
+        g.setColour (s.slide ? acid : juce::Colour (0xff1a1a20));
+        g.fillRoundedRectangle (sBox, 4.0f);
+        g.setColour (s.slide ? juce::Colour (0xff101014) : dimText);
+        g.drawText ("S", sBox, juce::Justification::centred);
+    }
+}
+
+void StepGrid::mouseDown (const juce::MouseEvent& e)
+{
+    dragCol = columnAt ((float) e.x);
+    dragZone = zoneAt ((float) e.y);
+    dragStartY = (float) e.y;
+    dragStartSemis = processor.getStep (dragCol).semis;
+    dragged = false;
+
+    auto s = processor.getStep (dragCol);
+    if (dragZone == Zone::accent) { s.accent = ! s.accent; if (s.accent) s.on = true; processor.setStep (dragCol, s); edited(); }
+    if (dragZone == Zone::slide)  { s.slide  = ! s.slide;  if (s.slide)  s.on = true; processor.setStep (dragCol, s); edited(); }
+}
+
+void StepGrid::mouseDrag (const juce::MouseEvent& e)
+{
+    if (dragZone != Zone::pitch || dragCol < 0) return;
+    const float dy = dragStartY - (float) e.y;
+    if (! dragged && std::abs (dy) < 4.0f) return;
+    dragged = true;
+
+    auto s = processor.getStep (dragCol);
+    s.on = true;
+    s.semis = juce::jlimit (AcidPatterns::minSemis, AcidPatterns::maxSemis, dragStartSemis + juce::roundToInt (dy / 5.0f));
+    processor.setStep (dragCol, s);
+    edited();
+}
+
+void StepGrid::mouseUp (const juce::MouseEvent&)
+{
+    if (dragZone == Zone::pitch && ! dragged && dragCol >= 0)
+    {
+        auto s = processor.getStep (dragCol);
+        s.on = ! s.on;
+        processor.setStep (dragCol, s);
+        edited();
+    }
+    dragCol = -1;
+    dragZone = Zone::none;
+}
+
+void StepGrid::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    if (zoneAt ((float) e.y) != Zone::pitch) return;
+    const int c = columnAt ((float) e.x);
+    auto s = processor.getStep (c);
+    s.on = true;
+    s.semis = 0;
+    processor.setStep (c, s);
+    edited();
+}
+
+void StepGrid::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
+{
+    const int c = columnAt ((float) e.x);
+    auto s = processor.getStep (c);
+    if (! s.on) return;
+    s.semis = juce::jlimit (AcidPatterns::minSemis, AcidPatterns::maxSemis, s.semis + (w.deltaY > 0 ? 1 : -1));
+    processor.setStep (c, s);
+    edited();
 }
 
 // ============================ Editor ============================
-AcidLineEditor::AcidLineEditor (AcidLineProcessor& p)
-    : AudioProcessorEditor (&p), processor (p)
+void AcidLineEditor::setupKnob (Knob& k, const char* id, const char* name, juce::Colour colour, float fontSize)
 {
-    auto setupKnob = [this] (Knob& k, const char* id, const char* name, juce::Colour colour)
+    k.slider.setLookAndFeel (&lnf);
+    k.slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    k.slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, 16);
+    k.slider.setColour (juce::Slider::rotarySliderFillColourId, colour);
+    k.label.setText (name, juce::dontSendNotification);
+    k.label.setJustificationType (juce::Justification::centred);
+    k.label.setColour (juce::Label::textColourId, textCol);
+    k.label.setFont (juce::FontOptions (fontSize, juce::Font::bold));
+    addAndMakeVisible (k.slider);
+    addAndMakeVisible (k.label);
+    k.attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, id, k.slider);
+}
+
+AcidLineEditor::AcidLineEditor (AcidLineProcessor& p)
+    : AudioProcessorEditor (&p), processor (p), grid (p)
+{
+    const char* filterIds[]   = { "cutoff", "reso", "envmod", "decay" };
+    const char* filterNames[] = { "CUTOFF", "RESONANCE", "ENV MOD", "DECAY" };
+    for (int i = 0; i < 4; ++i)
     {
-        k.slider.setLookAndFeel (&lnf);
-        k.slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-        k.slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, 18);
-        k.slider.setColour (juce::Slider::rotarySliderFillColourId, colour);
-        k.label.setText (name, juce::dontSendNotification);
-        k.label.setJustificationType (juce::Justification::centred);
-        k.label.setColour (juce::Label::textColourId, textCol);
-        k.label.setFont (juce::FontOptions (13.0f, juce::Font::bold));
-        addAndMakeVisible (k.slider);
-        addAndMakeVisible (k.label);
-        k.attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, id, k.slider);
+        filterKnobs.push_back (std::make_unique<Knob>());
+        setupKnob (*filterKnobs.back(), filterIds[i], filterNames[i], acid, 13.0f);
+    }
+    setupKnob (distKnob, "dist", "GUITAR DIST", hot, 13.0f);
+
+    const char* fxIds[]   = { "dmix", "dfb", "rmix", "rsize" };
+    const char* fxNames[] = { "DELAY", "FEEDBACK", "REVERB", "SIZE" };
+    for (int i = 0; i < 4; ++i)
+    {
+        fxKnobs.push_back (std::make_unique<Knob>());
+        setupKnob (*fxKnobs.back(), fxIds[i], fxNames[i], fxCol, 11.0f);
+    }
+
+    // sequencer controls
+    for (auto* b : { &seqButton, &randomButton, &clearButton })
+    {
+        b->setLookAndFeel (&lnf);
+        addAndMakeVisible (*b);
+    }
+    seqButton.setClickingTogglesState (true);
+    seqButton.setColour (juce::TextButton::buttonOnColourId, acid);
+    randomButton.setColour (juce::TextButton::buttonOnColourId, acid);
+    clearButton.setColour (juce::TextButton::buttonOnColourId, dimText);
+    seqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, "seq", seqButton);
+
+    presetBox.setLookAndFeel (&lnf);
+    for (int i = 0; i < AcidPatterns::numPatterns; ++i)
+        presetBox.addItem (AcidPatterns::names[i], i + 1);
+    presetBox.setTextWhenNothingSelected ("Load pattern...");
+    presetBox.onChange = [this]
+    {
+        const int id = presetBox.getSelectedId();
+        if (id > 0) { processor.loadPreset (id - 1); grid.repaint(); }
+    };
+    addAndMakeVisible (presetBox);
+
+    randomButton.onClick = [this]
+    {
+        processor.randomisePattern();
+        presetBox.setText ("Random", juce::dontSendNotification);
+        grid.repaint();
+    };
+    clearButton.onClick = [this]
+    {
+        for (int i = 0; i < AcidPatterns::numSteps; ++i) processor.setStep (i, AcidStep {});
+        presetBox.setText ("Empty", juce::dontSendNotification);
+        grid.repaint();
     };
 
-    for (auto& d : defs)
-    {
-        knobs.push_back (std::make_unique<Knob>());
-        setupKnob (*knobs.back(), d.id, d.name, acid);
-    }
-    setupKnob (distKnob, "dist", "GUITAR DIST", hot);
+    grid.onEdit = [this] { presetBox.setText ("Custom", juce::dontSendNotification); };
+    addAndMakeVisible (grid);
 
-    patternBox.setLookAndFeel (&lnf);
-    patternBox.addItemList (processor.apvts.getParameter ("pattern")->getAllValueStrings(), 1);
-    addAndMakeVisible (patternBox);
-    patternAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, "pattern", patternBox);
+    // delay time
+    delayTimeBox.setLookAndFeel (&lnf);
+    delayTimeBox.setColour (juce::ComboBox::textColourId, fxCol);
+    delayTimeBox.addItemList (processor.apvts.getParameter ("dtime")->getAllValueStrings(), 1);
+    addAndMakeVisible (delayTimeBox);
+    delayTimeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, "dtime", delayTimeBox);
 
     setSize (W, H);
     startTimerHz (30);
@@ -140,19 +359,21 @@ AcidLineEditor::AcidLineEditor (AcidLineProcessor& p)
 AcidLineEditor::~AcidLineEditor()
 {
     stopTimer();
-    for (auto& k : knobs) k->slider.setLookAndFeel (nullptr);
+    for (auto* v : { &filterKnobs, &fxKnobs })
+        for (auto& k : *v) k->slider.setLookAndFeel (nullptr);
     distKnob.slider.setLookAndFeel (nullptr);
-    patternBox.setLookAndFeel (nullptr);
+    for (auto* b : { &seqButton, &randomButton, &clearButton }) b->setLookAndFeel (nullptr);
+    presetBox.setLookAndFeel (nullptr);
+    delayTimeBox.setLookAndFeel (nullptr);
 }
 
 void AcidLineEditor::timerCallback()
 {
     const int step = processor.currentStep.load();
-    const int pat  = juce::roundToInt (processor.apvts.getRawParameterValue ("pattern")->load());
-    if (step != shownStep || pat != shownPattern)
+    if (step != shownStep)
     {
-        shownStep = step; shownPattern = pat;
-        repaint (stepArea.toNearestInt().expanded (8));
+        shownStep = step;
+        grid.repaint();
     }
 }
 
@@ -169,14 +390,12 @@ void AcidLineEditor::drawSection (juce::Graphics& g, juce::Rectangle<float> r, c
 
 void AcidLineEditor::paint (juce::Graphics& g)
 {
-    // background + subtle grid
     g.setGradientFill (juce::ColourGradient (bgTop, 0.0f, 0.0f, bgBottom, 0.0f, (float) H, false));
     g.fillAll();
     g.setColour (juce::Colours::white.withAlpha (0.025f));
     for (int x = 0; x < W; x += 20) g.drawVerticalLine (x, 0.0f, (float) H);
     for (int y = 0; y < H; y += 20) g.drawHorizontalLine (y, 0.0f, (float) W);
 
-    // header: glowing title
     const juce::Rectangle<float> titleR (22.0f, 14.0f, 300.0f, 40.0f);
     g.setFont (juce::FontOptions (30.0f, juce::Font::bold));
     for (int i = 3; i >= 1; --i)
@@ -189,90 +408,51 @@ void AcidLineEditor::paint (juce::Graphics& g)
 
     g.setColour (dimText);
     g.setFont (juce::FontOptions (11.0f));
-    g.drawText ("MONO ACID BASS SYNTH", juce::Rectangle<float> (W - 260.0f, 18.0f, 238.0f, 16.0f), juce::Justification::centredRight);
+    g.drawText ("MONO ACID BASS SYNTH", juce::Rectangle<float> (W - 300.0f, 18.0f, 278.0f, 16.0f), juce::Justification::centredRight);
     g.setColour (dimText.withAlpha (0.7f));
-    g.drawText ("vel 100+ = accent  |  overlap = slide", juce::Rectangle<float> (W - 260.0f, 34.0f, 238.0f, 16.0f), juce::Justification::centredRight);
+    g.drawText ("SEQ on: press a key to transpose", juce::Rectangle<float> (W - 300.0f, 34.0f, 278.0f, 16.0f), juce::Justification::centredRight);
 
-    // sections
-    drawSection (g, { 12.0f, 64.0f, W - 24.0f, 196.0f }, "FILTER");
-    drawSection (g, { 12.0f, 270.0f, 384.0f, 188.0f }, "SEQUENCER");
-    drawSection (g, { 404.0f, 270.0f, 184.0f, 188.0f }, "AMP");
+    drawSection (g, { 12.0f, 64.0f, 520.0f, 190.0f }, "FILTER");
+    drawSection (g, { 540.0f, 64.0f, 228.0f, 190.0f }, "DRIVE");
+    drawSection (g, { 12.0f, 262.0f, 520.0f, 326.0f }, "SEQUENCER");
+    drawSection (g, { 540.0f, 262.0f, 228.0f, 326.0f }, "FX");
 
-    drawSteps (g, stepArea);
-}
-
-void AcidLineEditor::drawSteps (juce::Graphics& g, juce::Rectangle<float> area)
-{
-    const int pat = juce::roundToInt (processor.apvts.getRawParameterValue ("pattern")->load()) - 1;
-    const int cur = processor.currentStep.load();
-    const float cellW = area.getWidth() / 16.0f;
-
-    for (int i = 0; i < 16; ++i)
-    {
-        auto cell = juce::Rectangle<float> (area.getX() + i * cellW, area.getY(), cellW, area.getHeight()).reduced (2.5f, 0.0f);
-        auto led = cell.withHeight (area.getHeight() - 34.0f);
-        const bool beat = i % 4 == 0;
-
-        juce::Colour col = juce::Colour (0xff24242c);
-        bool accent = false, slide = false;
-        if (pat >= 0)
-        {
-            const auto& s = AcidPatterns::patterns[pat][i];
-            accent = s.on && s.accent;
-            slide = s.on && s.slide;
-            if (s.on) col = (accent ? hot : acid).withAlpha (0.35f);
-        }
-        if (i == cur)
-        {
-            const auto lit = accent ? hot : acid;
-            g.setColour (lit.withAlpha (0.25f));
-            g.fillRoundedRectangle (led.expanded (4.0f), 6.0f);
-            col = lit;
-        }
-
-        g.setColour (col);
-        g.fillRoundedRectangle (led, 3.0f);
-        g.setColour (beat ? juce::Colour (0xff50505e) : edge);
-        g.drawRoundedRectangle (led, 3.0f, 1.0f);
-
-        // slide marker: a small line linking to the next step
-        if (slide)
-        {
-            g.setColour (acid.withAlpha (0.8f));
-            g.fillRect (led.getRight() - 1.0f, led.getBottom() + 4.0f, cellW * 0.6f + 2.0f, 2.0f);
-        }
-    }
-
-    // legend
-    auto legend = area.withY (area.getY() + area.getHeight() - 12.0f).withHeight (12.0f);
+    g.setColour (dimText);
     g.setFont (juce::FontOptions (10.0f));
-    g.setColour (acid);   g.fillRoundedRectangle (legend.getX(), legend.getY() + 2.0f, 8.0f, 8.0f, 2.0f);
-    g.setColour (dimText); g.drawText ("note", legend.withTrimmedLeft (12.0f).withWidth (40.0f), juce::Justification::centredLeft);
-    g.setColour (hot);    g.fillRoundedRectangle (legend.getX() + 50.0f, legend.getY() + 2.0f, 8.0f, 8.0f, 2.0f);
-    g.setColour (dimText); g.drawText ("accent", legend.withTrimmedLeft (62.0f).withWidth (50.0f), juce::Justification::centredLeft);
-    g.setColour (acid);   g.fillRect (legend.getX() + 115.0f, legend.getY() + 5.0f, 10.0f, 2.0f);
-    g.setColour (dimText); g.drawText ("slide", legend.withTrimmedLeft (130.0f).withWidth (40.0f), juce::Justification::centredLeft);
-    if (pat >= 0)
-        g.drawText ("press a key to transpose", legend, juce::Justification::centredRight);
+    g.drawText ("click = on/off   |   drag up/down = pitch   |   double-click = root   |   A = accent   S = slide",
+                juce::Rectangle<float> (28.0f, 566.0f, 488.0f, 14.0f), juce::Justification::centred);
 }
 
 void AcidLineEditor::resized()
 {
-    // filter knobs
-    auto area = juce::Rectangle<int> (24, 86, W - 48, 166);
-    const int w = area.getWidth() / (int) knobs.size();
-    for (auto& k : knobs)
+    // filter
+    auto area = juce::Rectangle<int> (24, 84, 496, 162);
+    const int w = area.getWidth() / 4;
+    for (auto& k : filterKnobs)
     {
         auto col = area.removeFromLeft (w);
         k->label.setBounds (col.removeFromTop (20));
-        k->slider.setBounds (col.reduced (6, 0));
+        k->slider.setBounds (col.reduced (4, 0));
     }
 
-    // sequencer
-    patternBox.setBounds (28, 296, 352, 36);
-    stepArea = { 28.0f, 352.0f, 352.0f, 92.0f };
+    // drive
+    distKnob.label.setBounds (552, 84, 204, 20);
+    distKnob.slider.setBounds (584, 104, 140, 142);
 
-    // amp
-    distKnob.label.setBounds (414, 292, 164, 20);
-    distKnob.slider.setBounds (430, 314, 132, 136);
+    // sequencer
+    seqButton.setBounds (28, 288, 62, 32);
+    presetBox.setBounds (98, 288, 238, 32);
+    randomButton.setBounds (344, 288, 92, 32);
+    clearButton.setBounds (444, 288, 72, 32);
+    grid.setBounds (28, 334, 488, 226);
+
+    // fx
+    delayTimeBox.setBounds (556, 288, 196, 28);
+    const int cw = 98, ch = 128;
+    for (int i = 0; i < 4; ++i)
+    {
+        auto cell = juce::Rectangle<int> (556 + (i % 2) * cw, 326 + (i / 2) * ch, cw, ch);
+        fxKnobs[(size_t) i]->label.setBounds (cell.removeFromTop (18));
+        fxKnobs[(size_t) i]->slider.setBounds (cell.reduced (2, 0));
+    }
 }

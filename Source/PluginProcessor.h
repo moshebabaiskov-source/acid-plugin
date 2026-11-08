@@ -1,6 +1,8 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "AcidExtras.h"
+#include <array>
+#include <atomic>
 #include <vector>
 
 class AcidLineProcessor : public juce::AudioProcessor
@@ -21,7 +23,7 @@ public:
     bool acceptsMidi() const override  { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.05; }
+    double getTailLengthSeconds() const override { return 3.0; }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -32,9 +34,15 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    // ---- editable pattern (shared safely between UI and audio) ----
+    AcidStep getStep (int i) const       { return AcidStep::unpack (steps[(size_t) i].load()); }
+    void setStep (int i, AcidStep s)     { steps[(size_t) i].store (s.pack()); }
+    void loadPreset (int index);
+    void randomisePattern();
+
     juce::AudioProcessorValueTreeState apvts;
-    std::atomic<int> currentStep { -1 };   // for the LED display (-1 = not running)
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+    std::atomic<int> currentStep { -1 };   // for the step display (-1 = not running)
 
 private:
     void handleMidi (const juce::MidiMessage& m);
@@ -43,9 +51,15 @@ private:
     AcidVoice voice;
     AcidSequencer sequencer;
     GuitarDist guitarDist;
-    std::vector<int> heldNotes;   // for legato / slide handling
-    int seqRoot = 36;             // pattern root note (C1); a played key transposes it
-    double internalStepPos = 0.0; // fallback clock when there is no host (standalone)
+    PingPongDelay delay;
+    juce::Reverb reverb;
+    std::vector<float> revL, revR;
+    float revHpX = 0.0f, revHpY = 0.0f, revHpC = 0.0f;
+
+    std::array<std::atomic<int>, AcidPatterns::numSteps> steps;
+    std::vector<int> heldNotes;
+    int seqRoot = 36;
+    double internalStepPos = 0.0;
     bool seqWasRunning = false;
     double sampleRateHz = 44100.0;
 
