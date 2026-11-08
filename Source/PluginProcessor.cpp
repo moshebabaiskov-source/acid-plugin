@@ -37,6 +37,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AcidLineProcessor::createLay
 
     // sequencer
     p.push_back (std::make_unique<AudioParameterBool> (ParameterID { "seq", 1 }, "Sequencer On", false));
+    p.push_back (std::make_unique<AudioParameterBool> (ParameterID { "hold", 1 }, "Sequencer Hold", false));
 
     // fx
     p.push_back (std::make_unique<AudioParameterChoice> (ParameterID { "dtime", 1 }, "Delay Time",
@@ -107,7 +108,19 @@ void AcidLineProcessor::handleMidi (const juce::MidiMessage& m)
     const bool seqOn = apvts.getRawParameterValue ("seq")->load() > 0.5f;
     if (seqOn)
     {
-        if (m.isNoteOn()) seqRoot = m.getNoteNumber();   // key = transpose, stays latched
+        // sequencer plays only while a note is held; the newest held note sets the key
+        if (m.isNoteOn())
+        {
+            heldNotes.push_back (m.getNoteNumber());
+            seqRoot = m.getNoteNumber();
+        }
+        else if (m.isNoteOff())
+        {
+            heldNotes.erase (std::remove (heldNotes.begin(), heldNotes.end(), m.getNoteNumber()), heldNotes.end());
+            if (! heldNotes.empty()) seqRoot = heldNotes.back();
+        }
+        else if (m.isAllNotesOff() || m.isAllSoundOff())
+            heldNotes.clear();
         return;
     }
 
@@ -140,6 +153,7 @@ void AcidLineProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     auto* outR = numCh > 1 ? buffer.getWritePointer (1) : nullptr;
 
     const bool seqOn      = apvts.getRawParameterValue ("seq")->load() > 0.5f;
+    const bool seqHold    = apvts.getRawParameterValue ("hold")->load() > 0.5f;
     const float distAmt   = apvts.getRawParameterValue ("dist")->load();
     const int dTimeIdx    = juce::jlimit (0, 3, juce::roundToInt (apvts.getRawParameterValue ("dtime")->load()));
     const float dMix      = apvts.getRawParameterValue ("dmix")->load();
@@ -163,18 +177,26 @@ void AcidLineProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
             if (auto ppq = pos->getPpqPosition()) stepPos = *ppq * 4.0;
         }
 
-    const bool seqRunning = seqOn && (haveHost ? hostPlaying : true);
+    const bool transportOk = haveHost ? hostPlaying : true;
     if (! haveHost) stepPos = internalStepPos;
     const double stepInc = bpm / 60.0 * 4.0 / sampleRateHz;
     const float delaySamples = (float) (delayBeats[dTimeIdx] * 60.0 / bpm * sampleRateHz);
 
-    if (seqWasRunning && ! seqRunning) sequencer.stop (voice);
-    if (seqOn && ! seqWasRunning) { heldNotes.clear(); voice.noteOff(); }
-    seqWasRunning = seqRunning;
+    if (seqOn != lastSeqOn)   // switching between MIDI mode and sequencer mode
+    {
+        sequencer.stop (voice);
+        voice.noteOff();
+        heldNotes.clear();
+        seqActive = false;
+        lastSeqOn = seqOn;
+    }
 
     auto renderSample = [&] (int i)
     {
-        if (seqRunning) sequencer.tick (stepPos + i * stepInc, pat, seqRoot, voice);
+        const bool active = seqOn && transportOk && (seqHold || ! heldNotes.empty());
+        if (active)              sequencer.tick (stepPos + i * stepInc, pat, seqRoot, voice);
+        else if (seqActive)      sequencer.stop (voice);
+        seqActive = active;
         const float x = guitarDist.process (voice.process (params), distAmt);
         float l, r;
         delay.process (x, delaySamples, dFb, dMix, l, r);
@@ -192,7 +214,7 @@ void AcidLineProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     for (; pos < numSamples; ++pos) renderSample (pos);
 
     if (! haveHost) internalStepPos += numSamples * stepInc;
-    currentStep.store (seqRunning ? sequencer.currentIndex() : -1);
+    currentStep.store (seqActive ? sequencer.currentIndex() : -1);
 
     // ---- reverb (bass filtered out of the send so the low end stays clean) ----
     if (rMix > 0.001f)

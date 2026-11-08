@@ -70,8 +70,8 @@ private:
     std::vector<std::unique_ptr<Knob>> filterKnobs, fxKnobs;
     Knob distKnob;
 
-    juce::TextButton seqButton { "SEQ" }, randomButton { "RANDOM" }, clearButton { "CLEAR" };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> seqAttachment;
+    juce::TextButton seqButton { "SEQ" }, holdButton { "HOLD" }, randomButton { "RANDOM" }, clearButton { "CLEAR" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> seqAttachment, holdAttachment;
     juce::ComboBox presetBox, delayTimeBox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> delayTimeAttachment;
     StepGrid grid;

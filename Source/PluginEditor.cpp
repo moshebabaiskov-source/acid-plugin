@@ -307,7 +307,7 @@ AcidLineEditor::AcidLineEditor (AcidLineProcessor& p)
     }
 
     // sequencer controls
-    for (auto* b : { &seqButton, &randomButton, &clearButton })
+    for (auto* b : { &seqButton, &holdButton, &randomButton, &clearButton })
     {
         b->setLookAndFeel (&lnf);
         addAndMakeVisible (*b);
@@ -317,6 +317,10 @@ AcidLineEditor::AcidLineEditor (AcidLineProcessor& p)
     randomButton.setColour (juce::TextButton::buttonOnColourId, acid);
     clearButton.setColour (juce::TextButton::buttonOnColourId, dimText);
     seqAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, "seq", seqButton);
+    holdButton.setClickingTogglesState (true);
+    holdButton.setColour (juce::TextButton::buttonOnColourId, hot);
+    holdButton.setTooltip ("On: pattern plays all the time. Off: only while a MIDI note is held");
+    holdAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, "hold", holdButton);
 
     presetBox.setLookAndFeel (&lnf);
     for (int i = 0; i < AcidPatterns::numPatterns; ++i)
@@ -362,7 +366,7 @@ AcidLineEditor::~AcidLineEditor()
     for (auto* v : { &filterKnobs, &fxKnobs })
         for (auto& k : *v) k->slider.setLookAndFeel (nullptr);
     distKnob.slider.setLookAndFeel (nullptr);
-    for (auto* b : { &seqButton, &randomButton, &clearButton }) b->setLookAndFeel (nullptr);
+    for (auto* b : { &seqButton, &holdButton, &randomButton, &clearButton }) b->setLookAndFeel (nullptr);
     presetBox.setLookAndFeel (nullptr);
     delayTimeBox.setLookAndFeel (nullptr);
 }
@@ -410,7 +414,7 @@ void AcidLineEditor::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (11.0f));
     g.drawText ("MONO ACID BASS SYNTH", juce::Rectangle<float> (W - 300.0f, 18.0f, 278.0f, 16.0f), juce::Justification::centredRight);
     g.setColour (dimText.withAlpha (0.7f));
-    g.drawText ("SEQ on: press a key to transpose", juce::Rectangle<float> (W - 300.0f, 34.0f, 278.0f, 16.0f), juce::Justification::centredRight);
+    g.drawText ("SEQ plays while a MIDI note is held  |  HOLD = always", juce::Rectangle<float> (W - 300.0f, 34.0f, 278.0f, 16.0f), juce::Justification::centredRight);
 
     drawSection (g, { 12.0f, 64.0f, 520.0f, 190.0f }, "FILTER");
     drawSection (g, { 540.0f, 64.0f, 228.0f, 190.0f }, "DRIVE");
@@ -441,7 +445,8 @@ void AcidLineEditor::resized()
 
     // sequencer
     seqButton.setBounds (28, 288, 62, 32);
-    presetBox.setBounds (98, 288, 238, 32);
+    holdButton.setBounds (96, 288, 62, 32);
+    presetBox.setBounds (164, 288, 172, 32);
     randomButton.setBounds (344, 288, 92, 32);
     clearButton.setBounds (444, 288, 72, 32);
     grid.setBounds (28, 334, 488, 226);

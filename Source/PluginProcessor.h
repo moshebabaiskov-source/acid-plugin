@@ -60,7 +60,7 @@ private:
     std::vector<int> heldNotes;
     int seqRoot = 36;
     double internalStepPos = 0.0;
-    bool seqWasRunning = false;
+    bool lastSeqOn = false, seqActive = false;
     double sampleRateHz = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AcidLineProcessor)
