@@ -70,6 +70,11 @@ public:
         }
     }
 
+    int currentIndex() const
+    {
+        return lastStep == LLONG_MIN ? -1 : (int) (((lastStep % 16) + 16) % 16);
+    }
+
     void stop (AcidVoice& voice)
     {
         if (gateOpen) voice.noteOff();

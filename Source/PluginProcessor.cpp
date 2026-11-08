@@ -141,6 +141,7 @@ void AcidLineProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mi
     for (; pos < numSamples; ++pos) renderSample (pos);
 
     if (! haveHost) internalStepPos += numSamples * stepInc;
+    currentStep.store (seqRunning ? sequencer.currentIndex() : -1);
 
     for (int ch = 1; ch < buffer.getNumChannels(); ++ch)
         buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);

@@ -33,6 +33,7 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     juce::AudioProcessorValueTreeState apvts;
+    std::atomic<int> currentStep { -1 };   // for the LED display (-1 = not running)
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
 private:
